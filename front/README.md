@@ -1,18 +1,11 @@
 # GitCheck 前端
 
-在 front 目录运行 `npm ci`、`npm run dev`，打开终端显示的地址。运行 `npm run build` 进行类型检查并生成 dist。
+在 `front/` 目录运行 `npm ci`、`npm run dev`，打开终端显示的地址。运行 `npm run build` 会检查类型并生成 `front/dist/`，由生产环境的 Express 同源提供。
 
-在「体验示例」中选择公开仓库（`https://github.com/example/agent-starter`），选择分支再扫描。其余选项模拟仓库非公开、无法访问、查询限流及网络失败。
+发布启动命令见 [根 README](../README.md)。
 
-| 分支 | 模拟结果 |
-| --- | --- |
-| main | Node.js，含 README、平台、路径及敏感信息风险 |
-| release/clean | Python，无风险 |
-| audit/partial | 部分覆盖、未知项目类型、分数暂定 |
-| java/demo | Java，无风险 |
-| deleted/demo | 分支已删除 |
-| error/tree | 文件树读取失败 |
+真实仓库扫描需要先在 backend 目录启动后端（`npm ci`、`npm run dev`）。Vite 将相对路径 `/api` 转发到 `localhost:3000`，支持通过 `GITCHECK_API_TARGET` 覆盖目标。输入 `https://github.com/octocat/Hello-World`，查询后选择分支并点击「开始扫描」。等待结束后可在报告中核对分支、commit 和覆盖范围。分支已删除时可通过「刷新分支」重新加载。
 
-后四个分支可通过「加载更多」查看。报告记录在页面会话中保留。所有凭据示例均为虚构且脱敏。
+`src/http.ts` 实现仓库校验、分支分页和扫描请求，`src/api.ts` 定义契约。真实扫描使用等待提示，最近 30 条成功查询与扫描报告保存在当前浏览器的 localStorage 中，刷新后可从报告记录打开。存储逻辑位于 `src/history/`。
 
-`src/api.ts` 定义仓库公开性查询、分页分支查询和扫描进度及报告契约，`src/mock.ts` 提供实现。Vite 将 /api 转发到 localhost:3000。后端当前提供 GET /api/health，仓库查询、分支分页、扫描进度和 commit 报告的 HTTP 路径与数据结构留待联调。
+扫描请求为 `POST /api/repositories/:owner/:repo/scan`，JSON 请求体为 `{"branch":"feature/demo"}`。报告使用后端返回的完整 commit SHA。后端返回 `partial: true` 时，界面将分数标为暂定并列出覆盖限制。若返回 `BRANCH_NOT_FOUND`，刷新分支列表后可重新选择。

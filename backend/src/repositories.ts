@@ -10,7 +10,7 @@ function repositoryPath(owner: string, repo: string) {
   return '/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo)
 }
 
-function fields(data: unknown): Record<string, unknown> {
+export function fields(data: unknown): Record<string, unknown> {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new ApiError('GITHUB_UPSTREAM_ERROR')
   }
@@ -64,6 +64,10 @@ export async function listBranches(owner: string, repo: string, page: number) {
 }
 
 export async function resolveBranchVersion(owner: string, repo: string, branch: string) {
+  return (await resolveBranch(owner, repo, branch)).commit
+}
+
+export async function resolveBranch(owner: string, repo: string, branch: string) {
   if (!branch || branch === '.' || branch === '..') throw new ApiError('INVALID_BRANCH')
   const repository = await publicRepository(owner, repo)
   const { data } = await githubGet(
@@ -73,5 +77,5 @@ export async function resolveBranchVersion(owner: string, repo: string, branch: 
   if (typeof sha !== 'string' || !/^[a-f0-9]{40}$/i.test(sha)) {
     throw new ApiError('GITHUB_UPSTREAM_ERROR')
   }
-  return sha
+  return { repository: repository.name, commit: sha }
 }

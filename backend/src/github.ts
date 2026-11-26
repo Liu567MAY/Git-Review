@@ -1,4 +1,17 @@
 const apiOrigin = 'https://api.github.com'
+let rateLimitedUntil = 0
+
+function retryDeadline(headers: Headers, now: number) {
+  const retryAfter = headers.get('retry-after')
+  if (retryAfter !== null) {
+    const deadline = /^\d+$/.test(retryAfter) ? now + Number(retryAfter) * 1000 : Date.parse(retryAfter)
+    if (Number.isFinite(deadline) && deadline > now) return deadline
+  }
+  if (headers.get('x-ratelimit-remaining') === '0') {
+    const reset = Number(headers.get('x-ratelimit-reset')) * 1000
+    if (Number.isFinite(reset) && reset > now) return reset
+  }
+}
 
 const errors = {
   REPOSITORY_URL_REQUIRED: [400, '请输入 GitHub 仓库链接'],
@@ -15,16 +28,20 @@ const errors = {
   GITHUB_NETWORK_ERROR: [502, '无法连接 GitHub API，请重试'],
   GITHUB_UPSTREAM_ERROR: [502, 'GitHub API 暂时不可用，请重试'],
   INTERNAL_ERROR: [500, '服务暂时不可用'],
+  TREE_UNAVAILABLE: [502, '无法读取所选版本的文件树，请重试'],
 } as const
 
 export class ApiError extends Error {
   readonly code: keyof typeof errors
   readonly status: number
 
-  constructor(code: keyof typeof errors) {
+  readonly retryAt?: number
+
+  constructor(code: keyof typeof errors, retryAt?: number) {
     const [status, message] = errors[code]
     super(message)
     this.code = code
+    this.retryAt = retryAt
     this.status = status
   }
 }
@@ -32,8 +49,11 @@ export class ApiError extends Error {
 export async function githubGet(
   path: string,
   missing: 'REPOSITORY_UNAVAILABLE' | 'BRANCH_NOT_FOUND' = 'REPOSITORY_UNAVAILABLE',
+  deadline?: AbortSignal,
 ) {
-  const signal = AbortSignal.timeout(8000)
+  if (Date.now() < rateLimitedUntil) throw new ApiError('GITHUB_RATE_LIMITED', rateLimitedUntil)
+  const timeout = AbortSignal.timeout(8000)
+  const signal = deadline ? AbortSignal.any([timeout, deadline]) : timeout
   const headers = new Headers({
     Accept: 'application/vnd.github+json',
     'User-Agent': 'GitCheck',
@@ -56,7 +76,11 @@ export async function githubGet(
       response.headers.get('x-ratelimit-remaining') === '0'
       || response.headers.has('retry-after')
       || /rate limit/i.test(await response.text())
-    ))) throw new ApiError('GITHUB_RATE_LIMITED')
+    ))) {
+      const retryAt = retryDeadline(response.headers, Date.now())
+      if (retryAt !== undefined) rateLimitedUntil = Math.max(rateLimitedUntil, retryAt)
+      throw new ApiError('GITHUB_RATE_LIMITED', retryAt)
+    }
     if (response.status === 404) throw new ApiError(missing)
     if ([301, 302, 307, 308, 401, 403, 410, 451].includes(response.status)) {
       throw new ApiError('REPOSITORY_UNAVAILABLE')

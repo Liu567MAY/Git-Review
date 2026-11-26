@@ -47,7 +47,7 @@ const results = computed(() => {
       <details v-for="risk in results" :key="risk.rule">
         <summary class="risk"><b :class="risk.level.toLowerCase()">{{ risk.level }}</b><b>{{ risk.title }}</b><code>{{ risk.location }}</code><span aria-hidden="true">⌄</span></summary>
         <div class="inside">
-          <div class="eyebrow">{{ categories[risk.category] }} · {{ risk.rule }} · Mock 脱敏证据</div>
+          <div class="eyebrow">{{ categories[risk.category] }} · {{ risk.rule }} · 匹配依据</div>
           <pre>{{ risk.evidence }}</pre>
           <b>修复建议</b><p>{{ risk.advice }}</p>
         </div>

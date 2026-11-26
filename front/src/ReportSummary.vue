@@ -15,7 +15,7 @@ const distribution = computed(() => levels.map(level => ({
 
 <template>
   <div class="reporthead">
-    <div><div class="eyebrow">ANALYSIS REPORT · MOCK</div><h2>{{ report.repository }}</h2></div>
+    <div><div class="eyebrow">ANALYSIS REPORT{{ report.example ? ' · MOCK 示例' : '' }}</div><h2>{{ report.repository }}</h2></div>
     <div class="report-ref"><span class="tag">{{ report.branch }} · {{ report.commit }}</span><div class="eyebrow">{{ new Date(report.scannedAt).toLocaleString() }}</div></div>
   </div>
   <div class="panel summary">
@@ -23,7 +23,7 @@ const distribution = computed(() => levels.map(level => ({
       <div class="eyebrow">INTEGRATION READINESS / 接入就绪度</div>
       <div class="scorerow">
         <div class="big">{{ report.score }}<span class="green">.</span><small>/100</small></div>
-        <b :class="{ high: distribution[0].count }">{{ report.failed ? '暂定 · 部分扫描' : distribution[0].count ? '暂不建议直接接入' : '没有发现风险' }}</b>
+        <b :class="{ high: distribution[0].count }">{{ report.partial ? '暂定 · 部分扫描' : distribution[0].count ? '暂不建议直接接入' : report.risks.length ? '建议核对待确认风险' : '没有发现风险' }}</b>
       </div>
       <div class="segments" aria-hidden="true"><i v-for="segment in 25" :key="segment" :class="{ filled: segment * 4 <= report.score }"></i></div>
       <div v-if="report.risks.length" class="priority"><b>优先处理</b> · {{ report.risks[0].title }}</div>

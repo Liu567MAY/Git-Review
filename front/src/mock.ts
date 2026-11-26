@@ -1,4 +1,4 @@
-import type { Report, Risk, ScanApi } from './api'
+import { categories, type Report, type Risk, type ScanApi } from './api'
 
 export const examples = {
   'agent-starter': '公开仓库',
@@ -39,6 +39,7 @@ function createReport(repository: string, branch: string): Report {
   }
   return {
     repository, branch, commit: fixture.sha, scannedAt: new Date().toISOString(),
+    partial: Boolean(partial), example: true,
     read: partial ? 12 : branch === 'main' ? 128 : 24,
     skipped: partial ? 15 : 2, failed: partial ? 3 : 0,
     limits: partial ? ['文件树截断', '有 15 个文件因大小或数量上限跳过', '有 3 个文本文件读取失败'] : ['跳过 2 个二进制文件'],
@@ -70,7 +71,7 @@ export const api: ScanApi = {
     for (let step = 1; step <= 6; step++) {
       await wait(160)
       if (branch === 'error/tree') throw new Error('文件树读取失败，请重试扫描')
-      progress(Math.round(step * 100 / 6))
+      progress?.(Math.round(step * 100 / 6))
     }
     return createReport(repo.name, branch)
   },

@@ -17,8 +17,8 @@ function select(category: Category | 'all', severity: Severity | 'all' = 'all') 
   <article id="report" class="wrap">
     <ReportSummary :report="report" @severity="select('all', $event)" />
     <CheckOverview :report="report" @category="select($event)" />
-    <RiskList :risks="report.risks" :filter="filter" :partial="report.failed > 0" />
-    <details class="section panel ai" open>
+    <RiskList :risks="report.risks" :filter="filter" :partial="report.partial" />
+    <details v-if="report.example" class="section panel ai" open>
       <summary>AI 接入建议 <span class="muted">· Mock 演示</span></summary>
       <p v-for="risk in report.risks.slice(0, 3)" :key="risk.rule"><b>{{ risk.title }}</b> · {{ risk.advice }}</p>
       <p v-if="!report.risks.length">保留 README 中的安装与启动信息，以便复现接入步骤。</p>

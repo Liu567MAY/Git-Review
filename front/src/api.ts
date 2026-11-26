@@ -18,12 +18,13 @@ export type Report = {
   repository: string; branch: string; commit: string; scannedAt: string
   read: number; skipped: number; failed: number; limits: string[]
   score: number; risks: Risk[]
+  partial: boolean; example?: boolean
   checks: Record<Category, { name: string; status: string; evidence: string }[]>
 }
 export interface ScanApi {
-  repository(name: string): Promise<Repository>
-  branches(repo: Repository, cursor?: string): Promise<{ names: string[]; next?: string }>
-  scan(repo: Repository, branch: string, progress: (percent: number) => void): Promise<Report>
+  repository(name: string, url?: string): Promise<Repository>
+  branches(repo: Repository, cursor?: string): Promise<{ names: string[]; next?: string; defaultBranch?: string }>
+  scan(repo: Repository, branch: string, progress?: (percent: number) => void): Promise<Report>
 }
 
 export function parseRepository(input: string) {
