@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { scanRepository } from '../dist/scan.js'
 import { analyze } from '../dist/scan-rules.js'
+import { getSnapshot } from '../dist/snapshots.js'
 
 test('只读取固定版本，报告覆盖限制并隐藏凭据原文', async t => {
   const commit = 'a'.repeat(40)
@@ -43,6 +44,7 @@ test('只读取固定版本，报告覆盖限制并隐藏凭据原文', async t 
   assert.equal(requests.length, 28)
   assert.equal(report.branch, 'feature/demo')
   assert.equal(report.commit, commit)
+  assert.equal(getSnapshot(report.snapshotId)?.commit, commit)
   assert.equal(report.partial, true)
   assert.deepEqual([report.read, report.skipped, report.failed], [23, 9, 1])
   assert.equal(report.score, 55)

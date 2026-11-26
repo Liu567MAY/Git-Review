@@ -17,8 +17,8 @@ export function fields(data: unknown): Record<string, unknown> {
   return data as Record<string, unknown>
 }
 
-async function publicRepository(owner: string, repo: string) {
-  const { data } = await githubGet(repositoryPath(owner, repo))
+export async function publicRepository(owner: string, repo: string, signal?: AbortSignal) {
+  const { data } = await githubGet(repositoryPath(owner, repo), undefined, signal)
   const metadata = fields(data)
   if (metadata.private === true || metadata.visibility === 'private' || metadata.visibility === 'internal') {
     throw new ApiError('REPOSITORY_NOT_PUBLIC')

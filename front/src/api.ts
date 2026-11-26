@@ -18,7 +18,7 @@ export type Report = {
   repository: string; branch: string; commit: string; scannedAt: string
   read: number; skipped: number; failed: number; limits: string[]
   score: number; risks: Risk[]
-  partial: boolean; example?: boolean
+  partial: boolean; example?: boolean; snapshotId?: string
   checks: Record<Category, { name: string; status: string; evidence: string }[]>
 }
 export interface ScanApi {

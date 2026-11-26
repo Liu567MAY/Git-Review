@@ -49,6 +49,28 @@ HTTP 200 示例。仓库名称使用 GitHub 元数据中的规范写法。
 
 可运行 `npm run build` 和 `node --test test/scan.test.mjs` 验证受控扫描样例。
 
+## 双 Agent 审查
+
+沿用 `npm run dev` 或构建后的 `npm start`。本地可在 Git 忽略的 `backend/.env` 中设置 `AI_API_KEY`，两个启动命令都会读取它。也可在后端进程直接设置环境变量。可选的 `AI_BASE_URL` 和 `AI_MODEL` 默认分别为 `https://api.deepseek.com` 和 `deepseek-flash`。适配器使用 OpenAI 兼容 Chat Completions 和非思考模式。静态扫描无需模型配置。
+
+扫描成功时新增 `snapshotId`。每个进程最多保留 8 个快照，TTL 为 15 分钟，超容量时淘汰最早的快照。每个快照最多保留 24 个已读取文本，每个最多 64 KiB。快照 ID 是持有者凭证，应避免写入 URL、日志或遥测。进程重启后需重新扫描，多实例环境需要将扫描和审查请求路由到同一实例。
+
+`POST /api/ai/reviews` 接收 JSON `{"snapshotId":"扫描返回的 UUID"}`。过期或未知 ID 返回 HTTP 410 `SNAPSHOT_EXPIRED`，缺少模型配置返回 HTTP 503 `AI_NOT_CONFIGURED`，并发满时返回 HTTP 503 `AI_BUSY`。这些错误以 JSON 返回。成功接收请求时返回 `text/event-stream`，每条事件带 `runId` 和递增的 `seq`。
+
+```text
+event: agent.started
+data: {"type":"agent.started","agent":0,"runId":"…","seq":1}
+
+event: tool.called
+data: {"type":"tool.called","agent":0,"name":"read_file","summary":"行 1–8","runId":"…","seq":2}
+```
+
+Agent 0 审查 README，Agent 1 提出建议。前端可把 `agent.started` 映射为现有 phase，把 `tool.called` 和 `tool.completed` 映射为 tool。`finding.confirmed` 给出声明 ID 和结论。Agent 0 的 `agent.completed.result` 包含审查项与证据位置，可转换为 evidence rows。校验通过才发出 `handoff`。Agent 1 的 `agent.completed.result` 包含建议与可选带行号 Diff。`review.completed` 提供 commit、原静态 score、audit 和 suggestions。`review.failed` 提供失败 agent、公开错误码、partial 和已完成的审查结果（如有）。终态后关闭流；每 10 秒发出 SSE 注释心跳。
+
+每个 Agent 最多 16 次工具调用，上下文达到 100,000 字符后停止追加工具结果。整场 45 秒，模型单次 15 秒、最多输出 2,500 token，并发上限 3 场。单次最多列出 32 个路径、读取 160 行（仅传文件路径即可从第一行开始）、搜索返回 8 个匹配。搜索覆盖本次运行已缓存的脱敏文本。每场最多补读 4 个 blob，每次补读前验证公开性，并使用原 commit 文件树内的 blob SHA。断开连接会取消上游请求。凭据检测采用启发式规则，已知敏感文件和私钥正文会排除。
+
+运行 `npm run build` 和 `node --test test/*.test.mjs` 验证静态扫描和受控双 Agent 流程。
+
 ## 错误响应
 
 ```json

@@ -1,12 +1,13 @@
 import { ApiError, githubGet } from './github.ts'
 import { fields, resolveBranch } from './repositories.ts'
 import { analyze, priority, redact } from './scan-rules.ts'
+import { saveSnapshot } from './snapshots.ts'
 
 const maxFiles = 24
-const maxBytes = 64 * 1024
-const shaPattern = /^[a-f0-9]{40}$/i
-const binaryExtension = /\.(?:png|jpe?g|gif|webp|ico|pdf|zip|gz|woff2?|ttf|jar|class|exe|dll|mp[34])$/i
-const utf8 = new TextDecoder('utf-8', { fatal: true })
+export const maxBytes = 64 * 1024
+export const shaPattern = /^[a-f0-9]{40}$/i
+export const binaryExtension = /\.(?:png|jpe?g|gif|webp|ico|pdf|zip|gz|woff2?|ttf|jar|class|exe|dll|mp[34])$/i
+export const utf8 = new TextDecoder('utf-8', { fatal: true })
 
 export async function scanRepository(owner: string, repo: string, branch: string) {
   const { repository, commit } = await resolveBranch(owner, repo, branch)
@@ -79,10 +80,13 @@ export async function scanRepository(owner: string, repo: string, branch: string
     deadline.aborted && '扫描达到读取时限',
   ].filter((reason): reason is string => typeof reason === 'string')
   const partial = Boolean(tree.truncated || binary || special || oversized || overCount || failed || overTime)
-  return {
+  const report = {
     repository: redact(repository), branch: redact(branch), commit, scannedAt: new Date().toISOString(),
     read: texts.size, skipped: binary + special + oversized + overCount + overTime, failed, partial,
     limits: limits.length ? limits : ['已读取文件树中的全部文本候选文件'],
     ...analyze(files.map(file => file.path), texts, tree.truncated, partial),
   }
+  return { ...report, snapshotId: saveSnapshot({
+    repository, branch, commit, files, texts, tree: tree.entries, treeTruncated: tree.truncated, report,
+  }) }
 }
