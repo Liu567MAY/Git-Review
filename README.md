@@ -52,7 +52,7 @@ npm --prefix backend start
 
 真实扫描每次最多请求 24 个候选文件，每个文件最多 64 KiB，优先读取 README、依赖清单和启动配置。单次 GitHub 请求限时 8 秒，提交对象、文件树及文本读取共用 25 秒预算。二进制、非 UTF-8 文件、符号链接及子模块会跳过。每条规则展示首个代表位置，疑似凭据仅展示类型和位置。文件树截断时，计数仅基于 GitHub 已返回的条目。
 
-构建后可在后端目录运行 `node --test test/scan.test.mjs` 核对固定版本、脱敏、覆盖和评分。评分和 API 见 [backend/README.md](backend/README.md)，AI 辅助开发复验记录见 [AI_USAGE.md](AI_USAGE.md)。
+构建后可在后端目录运行 `node --test test/scan.test.mjs` 核对固定版本、脱敏、覆盖和评分。评分和 API 见 [backend/README.md](backend/README.md)。
 
 ## 更新跟踪设计
 
@@ -61,7 +61,7 @@ npm --prefix backend start
 3. **标记报告版本。** 一次扫描固定使用目标 SHA。报告同时展示仓库、分支、commit、扫描时间和覆盖范围。
 4. **失败与限流。** 保留最后一份成功报告及其版本，显示本次更新失败或限流。更新跟踪接入后，可按服务端返回的重试时间重新尝试。当前由用户手动重试。初次扫描失败时展示错误。
 
-更新跟踪当前为设计，完整需求与验收标准见 [SPEC.md](SPEC.md)。
+更新跟踪当前为设计。
 
 ## 提交前验收
 
