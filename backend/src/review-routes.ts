@@ -52,7 +52,7 @@ export function createReviewRouter(modelFactory: () => ModelClient | undefined =
         if (response.destroyed || terminal) return
         terminal = event.type === 'review.completed' || event.type === 'review.failed'
         response.write('event: ' + event.type + '\ndata: ' + JSON.stringify({ ...event, runId, seq: ++seq }) + '\n\n')
-      }, signal)
+      }, signal, runId)
     } finally {
       active--
       clearInterval(heartbeat)

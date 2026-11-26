@@ -27,6 +27,8 @@ const call = (name, args) => ({ tool_calls: [{ id: 'call_1', type: 'function',
 const read = path => call('read_file', { path, startLine: 1, endLine: 2 })
 const output = value => ({ content: JSON.stringify(value) })
 const latest = messages => JSON.parse(messages.at(-1).content)
+const withStaticRisk = { ...snapshot, report: { ...snapshot.report,
+  risks: [{ rule: 'DOC_INSTALL', category: 'integrity', title: '安装说明待核实', location: 'README.md:1' }] } }
 
 test('模型只传路径即可读取文件，长文件按 160 行分页', async () => {
   const texts = new Map(snapshot.texts).set('README.md', Array.from({ length: 180 }, (_, i) => 'Line ' + (i + 1)).join('\n'))
@@ -65,7 +67,8 @@ for (const verdict of ['一致', '不一致', '证据不足', '伪造', '无效�
     let sourceId, evidenceId
     const state = verdict === '一致' ? { ...snapshot, texts: new Map(snapshot.texts).set('README.md', 'Node 22\nAPI_KEY = ' + token) } : snapshot
     const model = async messages => {
-      const isAudit = !messages[1].content.includes('"findings"')
+      const isAudit = !messages[1].content.includes('"staticFindings"')
+      if (verdict === '一致') assert.ok(isAudit, '没有待处理项时无需调用建议模型')
       assert.ok(messages[1].content.includes(sha))
       assert.ok(!JSON.stringify(messages).includes(token))
       if (messages.length === 2) return read(isAudit ? 'README.md' : 'package.json')
@@ -116,6 +119,43 @@ for (const verdict of ['一致', '不一致', '证据不足', '伪造', '无效�
   })
 }
 
+test('一致声明不交给建议模型，模型越界时保留有效静态建议', async t => {
+  github(t)
+  let sourceId
+  const events = []
+  const state = { ...withStaticRisk, texts: new Map(snapshot.texts).set('README.md', 'Node 22\n```') }
+  await reviewSnapshot(state, async messages => {
+    const prompt = messages[1].content
+    if (prompt.includes('"staticFindings"')) {
+      const handoff = JSON.parse(prompt.split('\n')[0])
+      assert.deepEqual(handoff.eligibleClaims, [])
+      assert.deepEqual(handoff.staticFindings.map(item => item.id), ['DOC_INSTALL'])
+      const suggestion = { priority: 'P1', verification: '核对安装说明' }
+      return output({ suggestions: [
+        null,
+        { ...suggestion, findingId: 'claim-1' },
+        { ...suggestion, findingId: 'DOC_INSTALL', priority: 'high' },
+        { ...suggestion, findingId: 'DOC_INSTALL' },
+        { ...suggestion, findingId: 'DOC_INSTALL' },
+      ] })
+    }
+    if (messages.length === 2) return read('README.md')
+    if (messages.length === 4) {
+      sourceId = latest(messages).evidence.id
+      return read('package.json')
+    }
+    return output({ claims: [{ sourceId, sourceLine: 1, verdict: '一致',
+      evidenceIds: [latest(messages).evidence.id], reason: '已核对配置' },
+      null, { sourceId, sourceLine: 2, verdict: '一致', reason: '仅代码围栏' },
+    ] })
+  }, event => events.push(event), new AbortController().signal)
+  const end = events.at(-1)
+  assert.equal(end.type, 'review.completed')
+  assert.equal(end.audit[0].verdict, '一致')
+  assert.equal(end.audit.length, 1)
+  assert.deepEqual(end.suggestions.map(item => item.findingId), ['DOC_INSTALL'])
+})
+
 test('快照 TTL 和 GitHub 限流', async t => {
   const now = Date.now()
   t.mock.method(Date, 'now', () => now)
@@ -132,8 +172,8 @@ test('快照 TTL 和 GitHub 限流', async t => {
 test('Agent 2 模型超时时保留 Agent 1 已校验结果', async t => {
   github(t)
   const events = []
-  await reviewSnapshot(snapshot, async messages => {
-    if (messages[1].content.includes('"findings"')) throw new ReviewError('AI_TIMEOUT')
+  await reviewSnapshot(withStaticRisk, async messages => {
+    if (messages[1].content.includes('"staticFindings"')) throw new ReviewError('AI_TIMEOUT')
     return output({ claims: [] })
   }, event => events.push(event), new AbortController().signal)
   assert.deepEqual(events.at(-1), { type: 'review.failed', agent: 1, code: 'AI_TIMEOUT', partial: true, audit: [] })
@@ -149,7 +189,7 @@ test('SSE 断开取消模型调用，随后可以发起下一次审查', async t
   const aborted = new Promise(resolve => { stopped = resolve })
   let first = true
   app.use('/api/ai', createReviewRouter(() => async (_messages, signal) => {
-    if (!first) return output(_messages[1].content.includes('"findings"') ? { suggestions: [] } : { claims: [] })
+    if (!first) return output(_messages[1].content.includes('"staticFindings"') ? { suggestions: [] } : { claims: [] })
     first = false
     return new Promise((_, reject) => {
       signal.addEventListener('abort', () => { stopped(); reject(signal.reason) }, { once: true })

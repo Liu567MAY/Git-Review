@@ -30,7 +30,14 @@ export const toolDefinitions = [
   type: 'function', function: { name, description, parameters: { type: 'object', properties, required, additionalProperties: false } },
 }))
 
-export class ReviewError extends Error {}
+export class ReviewError extends Error {
+  readonly detail?: string
+
+  constructor(code: string, detail?: string) {
+    super(code)
+    this.detail = detail
+  }
+}
 
 export function toolArguments(name: string, raw: string) {
   const schema = toolDefinitions.find(tool => tool.function.name === name)?.function.parameters
